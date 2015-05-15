@@ -1,6 +1,6 @@
 <?php
 // WebSocketServer implementation in PHP
-// by Bryan Bliewert, nVentis@github
+// by Bryan Bliewert, nVentis@GitHub
 
 class WebSocketClient {
 	// get according socket in WebSocketServer using $this->Sockets[$Client->ID]
