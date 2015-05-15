@@ -30,7 +30,7 @@ The following list shows possible class properties ( property : [type] - [defaul
   timeLimit    | Number  | 0       |
   implicitFlush| Boolean | true    |
 
-**3. Custom methods - the following methods may be changed by your extending class **
+**3. Custom methods - the following methods may be changed by your extending class**
   
   Name      | Arguments     | executed after...
   ----------|---------------|----------------------------------------------------------------------------------------------
