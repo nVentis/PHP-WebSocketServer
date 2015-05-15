@@ -7,15 +7,15 @@ The main file WebSocketServer.php has to be included in your PHP file. After tha
 
 The following list shows possible class properties ( property : [type] - [default] [- Comment]   )
 
-1. Methods :
-  * Log ($M)
-    * displays $M in the console and / or saves $M in the logfile, depending on logTo
-  * Close ($Socket)
-    * closes a connection and cleans up the Clients + Sockets arrays
-  * Start ()
-    * starts the server; until then, any option can still be configured
-  * Write ($SocketID, $M)
-    * automatically encode $M and sends it to socket $SocketID
+**1. Methods**
+
+Name    | Arguments     | Comment
+--------|---------------|--------------------------------------------------------------------------------
+Log     | $M            | displays $M in the console and / or saves $M in the logfile, depending on logTo
+Start   |               | starts the server; until then, any option can still be configured
+Close   | $Socket       | closes a connection and cleans up the Clients + Sockets arrays
+Write   | $SocketID, $M | automatically encode $M and sends it to socket $SocketID
+
 
 **2. Properties**
 
