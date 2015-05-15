@@ -9,13 +9,12 @@ The following list shows possible class properties ( property : [type] - [defaul
 
 **1. Methods**
 
-Name    | Arguments     | Comment
---------|---------------|--------------------------------------------------------------------------------
-Log     | $M            | displays $M in the console and / or saves $M in the logfile, depending on logTo
-Start   |               | starts the server; until then, any option can still be configured
-Close   | $Socket       | closes a connection and cleans up the Clients + Sockets arrays
-Write   | $SocketID, $M | automatically encode $M and sends it to socket $SocketID
-
+  Name    | Arguments     | Comment
+  --------|---------------|--------------------------------------------------------------------------
+  Log     | $M            | displays $M in the console and / or saves $M in the logfile
+  Start   |               | starts the server; until then, any option can still be configured
+  Close   | $Socket       | closes a connection and cleans up the Clients + Sockets arrays
+  Write   | $SocketID, $M | automatically encodes $M and sends it to socket $SocketID
 
 **2. Properties**
 
