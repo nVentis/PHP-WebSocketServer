@@ -36,24 +36,24 @@ class WebSocketServer {
 		$socketMaster,
 		$Clients = array();
 	
-	function Log($M){
+	public function Log($M){
 		$M = "[". date(DATE_RFC1036, time()) ."] - $M \r\n";
 		if ($this->logToFile) file_put_contents($this->logFile, $M, FILE_APPEND); 
 		if ($this->logToDisplay) echo $M;
 	}
 	
-	function addClient($Socket){
+	protected function addClient($Socket){
 		$ClientID = intval($Socket);
 		$this->Clients[$ClientID] = new WebSocketClient($Socket);
 		$this->Sockets[$ClientID] = $Socket;
 		return $ClientID;
 	}
 	
-	function getClient($Socket){
+	protected function getClient($Socket){
 		return $this->Clients[intval($Socket)];
 	}
 
-	function Close($Socket){
+	public function Close($Socket){
 		socket_close($Socket);
 		$SocketID = intval($Socket);
 		unset($this->Clients[$SocketID]);
@@ -62,7 +62,7 @@ class WebSocketServer {
 		return $SocketID;
 	}
 	
-	function Handshake($Socket, $Buffer) {
+	protected function Handshake($Socket, $Buffer) {
 		$SocketID = intval($Socket);
 		$magicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 		$Headers = array();
@@ -89,7 +89,7 @@ class WebSocketServer {
 
 		if (isset($addHeader)) {
 			@socket_write($Socket, $addHeader, strlen($addHeader));
-			$this->onError($SocketID, "Handshake aborted - [". trim($addHeader)."] on socket #");
+			$this->onError($SocketID, "Handshake aborted - [". trim($addHeader)."]");
 			return $this->Close($Socket);
 		}
 
@@ -100,14 +100,14 @@ class WebSocketServer {
 		$Token = base64_encode($Token) . "\r\n";
 
 		$addHeader = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: $Token\r\n";
-		socket_write($Socket, $addHeader, strlen($addHeader));
+		@socket_write($Socket, $addHeader, strlen($addHeader));
 		
 		$this->Clients[$SocketID]->Headers = $Headers;
 		$this->Clients[$SocketID]->Handshake = $Buffer;
 		$this->onOpen($SocketID);
 	}
 	
-	function Encode($M) {
+	protected function Encode($M) {
 		// inspiration for Encode() method : http://stackoverflow.com/questions/8125507/how-can-i-send-and-receive-websocket-messages-on-the-server-side
 		$L = strlen($M);
 
@@ -135,12 +135,12 @@ class WebSocketServer {
 		return (implode(array_map("chr", $bHead)) . $M);
 	}
 	
-	function Write($SocketID, $M){
+	public function Write($SocketID, $M){
 		$M = $this->Encode($M); 
 		return @socket_write($this->Sockets[$SocketID], $M, strlen($M));
 	}
 	
-	function Decode($M){
+	protected function Decode($M){
 		$M = array_map("ord", str_split($M));
 		$L = $M[1] AND 127;
 		
@@ -160,7 +160,7 @@ class WebSocketServer {
 		return $Out;
 	}
 	
-	function Read($SocketID, $M){
+	public function Read($SocketID, $M){
 		$this->onData($SocketID, $this->Decode($M));
 	}
 	
@@ -180,7 +180,7 @@ class WebSocketServer {
 		$this->Log("Server initilaized on $Address:$Port");
 	}
 	
-	function Start(){
+	public function Start(){
 		$this->Log("Starting server...");
 		error_reporting($this->errorReport);
 		set_time_limit($this->timeLimit);
@@ -198,7 +198,7 @@ class WebSocketServer {
 				if ($Socket == $this->socketMaster){
 					$Client = socket_accept($Socket);
 					if (!is_resource($Client)){
-						$this->onError($SocketID, "Connection could not be established with socket #");
+						$this->onError($SocketID, "Connection could not be established");
 						continue;
 					} else {
 						$this->addClient($Client);
@@ -211,21 +211,21 @@ class WebSocketServer {
 						$sockerError	= socket_last_error($Socket);
 						$socketErrorM	= socket_strerror($sockerError);
 						if ($sockerError >= 100){
-								$this->onError($SocketID, "Unexpected disconnect with error [$socketError] on socket #");
+								$this->onError($SocketID, "Unexpected disconnect with error [$socketErrorM]");
 								$this->Close($Socket);
 						} else
-							$this->onOther($SocketID, "Other socket error [$socketErrorM] on socket #");
+							$this->onOther($SocketID, "Other socket error [$socketErrorM]");
 						
 					} elseif($receivedBytes == 0) {
 					// no headers received (at all) --> disconnect
 						$SocketID = $this->Close($Socket);
-						$this->onError($SocketID, "Client disconnected. TCP connection lost to socket #");
+						$this->onError($SocketID, "Client disconnected - TCP connection lost");
 					} else {
 					// no error, --> check handshake
 						$Client = $this->getClient($Socket);
 						if ($Client->Handshake == false){					
 							if (strpos(str_replace("\r", '', $dataBuffer), "\n\n") === false ) {	// headers have not been completely received --> wait --> handshake
-								$this->onOther($SocketID, "Continue receving headers for client #"); continue;
+								$this->onOther($SocketID, "Continue receving headers"); continue;
 							}
 							$this->Handshake($Socket, $dataBuffer);
 						} else {
@@ -242,10 +242,10 @@ class WebSocketServer {
 		function onData	($SocketID, $M	){} // ...message receipt; $M contains the decoded message
 		function onClose($SocketID		)	// ...socket has been closed AND deleted
 			{ $this->Log("Connection closed to socket #$SocketID"); }
-		function onError($SocketID, $M	)	// ...any connection-releated error	
-			{ $this->Log($M . $SocketID); }
+		function onError($SocketID, $M	)	// ...any connection-releated error
+			{ $this->Log("Socket $SocketID - ". $M); }
 		function onOther($SocketID, $M	)	// ...any connection-releated notification
-			{ $this->Log($M . $SocketID); }
+			{ $this->Log("Socket $SocketID - ". $M); }
 		function onOpening($SocketID	)	// ...being accepted and added to the client list
 			{ $this->Log("New client is establishing connection on socket #$SocketID"); }
 }
