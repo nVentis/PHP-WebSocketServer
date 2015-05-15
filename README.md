@@ -30,7 +30,7 @@ The following list shows possible class properties ( property : [type] - [defaul
   timeLimit    | Number  | 0       |
   implicitFlush| Boolean | true    |
 
-3. Custom methods - the following methods may be changed by your extending class; they are executed directly after...
+**3. Custom methods - the following methods may be changed by your extending class; they are executed directly after...**
   * onOpen ($SocketID)
     * ...a successul handshake
   * onData ($SocketID, $M)
@@ -43,9 +43,3 @@ The following list shows possible class properties ( property : [type] - [defaul
     * ...a non-critical warning; the connection is still active
   * onOpening($SocketID)
     * ...a socket has been accepted and added to the public Sockets and private Clients array
-
-
-First Header | Second Header
--------------|-------------
-Content Cell |  Content Cell
-Content Cell |  Content Cell
