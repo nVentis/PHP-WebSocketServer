@@ -211,10 +211,12 @@ class WebSocketServer {
 						$sockerError	= socket_last_error($Socket);
 						$socketErrorM	= socket_strerror($sockerError);
 						if ($sockerError >= 100){
-								$this->onError($SocketID, "Unexpected disconnect with error [$socketErrorM]");
+								$this->onError($SocketID, "Unexpected disconnect with error $sockerError [$socketErrorM]");
 								$this->Close($Socket);
-						} else
-							$this->onOther($SocketID, "Other socket error [$socketErrorM]");
+						} else {
+							$this->onOther($SocketID, "Other socket error $sockerError [$socketErrorM]");
+							$this->Close($Socket);
+						}
 						
 					} elseif($receivedBytes == 0) {
 					// no headers received (at all) --> disconnect
@@ -223,6 +225,7 @@ class WebSocketServer {
 					} else {
 					// no error, --> check handshake
 						$Client = $this->getClient($Socket);
+						$this->Log("Client $SocketID is known - Handshake : " . (($Client->Handshake == false) ? "NO" : "TRUE" ) );
 						if ($Client->Handshake == false){					
 							if (strpos(str_replace("\r", '', $dataBuffer), "\n\n") === false ) {	// headers have not been completely received --> wait --> handshake
 								$this->onOther($SocketID, "Continue receving headers"); continue;
@@ -238,8 +241,10 @@ class WebSocketServer {
 	}
 	
 	// Methods to be configured by the user; executed directly after...
-		function onOpen	($SocketID		){} //...successful handshake
-		function onData	($SocketID, $M	){} // ...message receipt; $M contains the decoded message
+		function onOpen	($SocketID		)	//...successful handshake
+			{ $this->Log("Handshake with socket #$SocketID successful"); }
+		function onData	($SocketID, $M	)	// ...message receipt; $M contains the decoded message
+			{ $this->Log("Received ". strlen($M) . " Bytes from socket #$SocketID"); }
 		function onClose($SocketID		)	// ...socket has been closed AND deleted
 			{ $this->Log("Connection closed to socket #$SocketID"); }
 		function onError($SocketID, $M	)	// ...any connection-releated error
@@ -247,6 +252,6 @@ class WebSocketServer {
 		function onOther($SocketID, $M	)	// ...any connection-releated notification
 			{ $this->Log("Socket $SocketID - ". $M); }
 		function onOpening($SocketID	)	// ...being accepted and added to the client list
-			{ $this->Log("New client is establishing connection on socket #$SocketID"); }
+			{ $this->Log("New client connecting on socket #$SocketID"); }
 }
 ?>
