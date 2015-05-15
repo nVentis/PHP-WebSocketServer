@@ -1,7 +1,6 @@
 <?php
-error_reporting(E_ALL);
-set_time_limit(0);
-ob_implicit_flush();
+// WebSocketServer implementation in PHP
+// by Bryan Bliewert, nVentis@github
 
 class WebSocketClient {
 	// get according socket in WebSocketServer using $this->Sockets[$Client->ID]
@@ -19,20 +18,27 @@ class WebSocketClient {
 
 class WebSocketServer {
 	public
-		$logToFile = false,
-		$logToDisplay = true,
-		$Sockets = array();
+		$logToFile		= false,
+			$logFile	= "log.txt",
+		$logToDisplay	= true,
+		$Sockets		= array(),
+		$bufferLength	= 2048,
+		$maxClients		= 20,
+		
+		// applied with Start()
+		$errorReport	= E_ALL,
+		$timeLimit		= 0,
+		$implicitFlush	= true;
 	
 	protected
 		$Address,
 		$Port,
 		$socketMaster,
-		$Clients = array(),
-		$bufferLength = 2048;
+		$Clients = array();
 	
 	function Log($M){
 		$M = "[". date(DATE_RFC1036, time()) ."] - $M \r\n";
-		if ($this->logToFile) file_put_contents("log.txt", $M, FILE_APPEND); 
+		if ($this->logToFile) file_put_contents($this->logFile, $M, FILE_APPEND); 
 		if ($this->logToDisplay) echo $M;
 	}
 	
@@ -52,12 +58,11 @@ class WebSocketServer {
 		$SocketID = intval($Socket);
 		unset($this->Clients[$SocketID]);
 		unset($this->Sockets[$SocketID]);
-		$this->Log("Connection with socket $SocketID closed");
 		$this->onClose($SocketID);
 		return $SocketID;
 	}
 	
-	function doHandshake($Socket, $Buffer) {
+	function Handshake($Socket, $Buffer) {
 		$SocketID = intval($Socket);
 		$magicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 		$Headers = array();
@@ -83,9 +88,9 @@ class WebSocketServer {
 			$addHeader = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";     
 
 		if (isset($addHeader)) {
-			socket_write($Socket, $addHeader, strlen($addHeader));
-			$this->Close($Socket);
-			return;
+			@socket_write($Socket, $addHeader, strlen($addHeader));
+			$this->onError($SocketID, "Handshake aborted - [". trim($addHeader)."] on socket #");
+			return $this->Close($Socket);
 		}
 
 		$Token = "";
@@ -100,7 +105,6 @@ class WebSocketServer {
 		$this->Clients[$SocketID]->Headers = $Headers;
 		$this->Clients[$SocketID]->Handshake = $Buffer;
 		$this->onOpen($SocketID);
-		$this->Log("User ". $SocketID . " connected successfully, handshake done");
 	}
 	
 	function Encode($M) {
@@ -157,75 +161,73 @@ class WebSocketServer {
 	}
 	
 	function Read($SocketID, $M){
-		$Decoded = $this->Decode($M);
-		$this->onData($SocketID, $M);
-		$this->Log("Message received : " . $Decoded);
+		$this->onData($SocketID, $this->Decode($M));
 	}
 	
-	function __construct($Address, $Port, $maxClients = 10){
+	function __construct($Address, $Port){
 		$this->socketMaster = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 		if (!is_resource($this->socketMaster))
 			$this->Log("The master socket could not be created: ".socket_strerror(socket_last_error()), true);
 		
 		socket_set_option($this->socketMaster, SOL_SOCKET, SO_REUSEADDR, 1);
 		if (!socket_bind($this->socketMaster, $Address, $Port))
-			$this->Log("socket_bind() failed: ".socket_strerror(socket_last_error()), true);
+			$this->Log("Can't bind on master socket: ".socket_strerror(socket_last_error()), true);
 
-		if(!socket_listen($this->socketMaster, $maxClients))
-			$this->Log("socket_listen() failed: ".socket_strerror(socket_last_error()), true);
+		if(!socket_listen($this->socketMaster, $this->maxClients))
+			$this->Log("Can't listen on master socket: ".socket_strerror(socket_last_error()), true);
 		
 		$this->Sockets["m"] = $this->socketMaster;
 		$this->Log("Server initilaized on $Address:$Port");
 	}
 	
-	// Functions to be configured by the user
-	function onOpen	($SocketID		){}
-	function onData	($SocketID, $M	){}
-	function onClose($SocketID		){}
-	
 	function Start(){
 		$this->Log("Starting server...");
+		error_reporting($this->errorReport);
+		set_time_limit($this->timeLimit);
+		if ($this->implicitFlush) ob_implicit_flush();
+		
 		while (true){
 			if (empty($this->Sockets)) $this->Sockets["m"] = $this->socketMaster;
 			$socketArrayRead = $this->Sockets;
 			$socketArrayWrite = $socketArrayExceptions = NULL;
 			// by-ref function, thus we can now iterate over the array
-			socket_select($socketArrayRead, $socketArrayWrite, $socketArrayExceptions, NULL);
+			@socket_select($socketArrayRead, $socketArrayWrite, $socketArrayExceptions, NULL);
 			
 			foreach($socketArrayRead as $Socket){
 				$SocketID = intval($Socket);
 				if ($Socket == $this->socketMaster){
-					$this->Log("New client is establishing connection...");
-					// New connection, New client, define and save new clients
 					$Client = socket_accept($Socket);
-					if ($Client < 0){
-						// Invalid client / connection could not be established --> socket rejected
-						$this->Log("Connection could not be established with socket [$Client]");
+					if (!is_resource($Client)){
+						$this->onError($SocketID, "Connection could not be established with socket #");
 						continue;
 					} else {
-						$ClientID = $this->addClient($Client);
-						$this->Log("Client connecting on socket [$ClientID]");
+						$this->addClient($Client);
+						$this->onOpening($SocketID);
 					}
-				} else {				
-					$receivedBytes = @socket_recv($Socket, $dataBuffer, 2048, 0);
-					if ($receivedBytes === false) { // on error
-						$sockerError = socket_last_error($Socket);
-						if (in_array($sockerError, array(102,103,104,108,110,111,112,113,121,125))){
-								$this->Log("Unusual disconnect on socket $SocketID with ErrorID $socketError");
+				} else {
+					$receivedBytes = @socket_recv($Socket, $dataBuffer, $this->bufferLength, 0);
+					if ($receivedBytes === false) {
+					// on error
+						$sockerError	= socket_last_error($Socket);
+						$socketErrorM	= socket_strerror($sockerError);
+						if ($sockerError >= 100){
+								$this->onError($SocketID, "Unexpected disconnect with error [$socketError] on socket #");
 								$this->Close($Socket);
 						} else
-							$this->Log('Socket error: ' . socket_strerror($sockerError));
+							$this->onOther($SocketID, "Other socket error [$socketErrorM] on socket #");
 						
-					} elseif($receivedBytes == 0) { // no data received, --> TCP Error, disconnect
+					} elseif($receivedBytes == 0) {
+					// no headers received (at all) --> disconnect
 						$SocketID = $this->Close($Socket);
-						$this->Log("Client disconnected. TCP connection lost: $SocketID");
-					} else {	// no error, --> check handshake
+						$this->onError($SocketID, "Client disconnected. TCP connection lost to socket #");
+					} else {
+					// no error, --> check handshake
 						$Client = $this->getClient($Socket);
 						if ($Client->Handshake == false){					
-							if (strpos(str_replace("\r", '', $dataBuffer), "\n\n") === false ) {	// headers have not been completely received, --> wait --> continue
-								$this->Log("Headers have not been completely received for user ". $SocketID); continue;
+							if (strpos(str_replace("\r", '', $dataBuffer), "\n\n") === false ) {	// headers have not been completely received --> wait --> handshake
+								$this->onOther($SocketID, "Continue receving headers for client #"); continue;
 							}
-							$this->doHandshake($Socket, $dataBuffer);
+							$this->Handshake($Socket, $dataBuffer);
 						} else {
 							$this->Read($SocketID, $dataBuffer);
 						}
@@ -234,11 +236,17 @@ class WebSocketServer {
 			}
 		}
 	}
+	
+	// Methods to be configured by the user; executed directly after...
+		function onOpen	($SocketID		){} //...successful handshake
+		function onData	($SocketID, $M	){} // ...message receipt; $M contains the decoded message
+		function onClose($SocketID		)	// ...socket has been closed AND deleted
+			{ $this->Log("Connection closed to socket #$SocketID"); }
+		function onError($SocketID, $M	)	// ...any connection-releated error	
+			{ $this->Log($M . $SocketID); }
+		function onOther($SocketID, $M	)	// ...any connection-releated notification
+			{ $this->Log($M . $SocketID); }
+		function onOpening($SocketID	)	// ...being accepted and added to the client list
+			{ $this->Log("New client is establishing connection on socket #$SocketID"); }
 }
-
-$Address = "127.0.0.1";
-$Port = 8080;
-
-$xDMSServer = new WebSocketServer($Address, $Port, 10);
-$xDMSServer->Start();
 ?>
