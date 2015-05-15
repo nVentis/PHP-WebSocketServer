@@ -30,16 +30,13 @@ The following list shows possible class properties ( property : [type] - [defaul
   timeLimit    | Number  | 0       |
   implicitFlush| Boolean | true    |
 
-**3. Custom methods - the following methods may be changed by your extending class; they are executed directly after...**
-  * onOpen ($SocketID)
-    * ...a successul handshake
-  * onData ($SocketID, $M)
-    * ...a message ($M) has been received (on socket $SocketID)
-  * onClose ($SocketID)
-    * ...a connection to a socket has been closed
-  * onError ($SocketID, $M)
-    * ...a critical error; $M includes additional information; connection to the socket has already been closed
-  * onOther ($SocketID, $M)
-    * ...a non-critical warning; the connection is still active
-  * onOpening($SocketID)
-    * ...a socket has been accepted and added to the public Sockets and private Clients array
+**3. Custom methods - the following methods may be changed by your extending class **
+  
+  Name      | Arguments     | executed after...
+  ----------|---------------|----------------------------------------------------------------------------------------------
+  onOpen    | $SocketID     | ...a successul handshake
+  onData    | $SocketID, $M | ...a message ($M) has been received (on socket $SocketID)
+  onClose   | $SocketID     | ...a connection to a socket has been closed
+  onError   | $SocketID, $M | ...a critical error; $M includes additional information; connection to socket has been closed
+  onOther   | $SockerID, $M | ...a non-critical warning; the connection is still active
+  onOpening | $SocketID     | ...a socket has been accepted and added to the public Sockets and private Clients array
